@@ -1,0 +1,146 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+apply plugin: 'maven-publish'
+apply plugin: 'maven'
+apply plugin: 'groovy'
+
+dependencies {
+    compile gradleApi()
+    compile localGroovy()
+    compile "com.moowork.gradle:gradle-node-plugin:" + project.gradleNodePluginVersion
+    compile "com.diffplug.spotless:spotless-plugin-gradle:" + project.spotlessPluginVersion
+}
+
+sourceSets {
+    main {
+        groovy {
+	    	srcDirs = ["$projectDir/src/main/groovy"]
+		}
+    }
+}
+
+group = 'com.missdumbo.gradle'
+
+repositories {
+	mavenCentral()
+	jcenter()
+	maven {url "http://mvnrepository.com/"}
+//	mavenLocal()
+//	maven{
+//		name = "misdumbo"
+//		url = project.ext.repositoryUrl
+//	}
+}
+
+sourceCompatibility = project.ext.javaSourceCompatibility
+targetCompatibility = project.ext.javaTargetCompatibility
+
+configurations	{
+	provided
+}
+
+configurations.all {
+	exclude group: 'asm'
+	resolutionStrategy{
+	    cacheChangingModulesFor 1, 'seconds'
+	    cacheDynamicVersionsFor 1, 'seconds'
+	}
+}
+
+jar {
+	duplicatesStrategy='EXCLUDE'
+	manifest {
+		attributes("provider":"https://github.com/missdumbo", "Implementation-Title": "Gradle", "Implementation-Version": project.version)
+	}
+	archiveName 'gvc-starter.jar'
+}
+
+eclipse {
+	classpath{
+		downloadSources=project.ext.downloadSource
+		defaultOutputDir=new File(project.buildDir.path+'/target')
+		plusConfigurations += [ configurations.provided ]
+
+		file {
+			whenMerged { classpath ->
+				for ( entryIt in classpath.entries) {
+					if(entryIt.path == 'org.springsource.ide.eclipse.gradle.classpathcontainer'){
+						classpath.entries.removeAll { entry ->
+							entry.kind == 'lib'
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	project {
+		natures 'org.springsource.ide.eclipse.gradle.core.nature'
+		natures 'org.springframework.ide.eclipse.core.springnature'
+		buildCommand 'org.springframework.ide.eclipse.core.springbuilder'
+	}
+}
+
+eclipseJdt { 
+	doLast {
+		File f = file('.settings/org.eclipse.core.resources.prefs')
+		f.write('eclipse.preferences.version=1\n')
+		f.append('encoding/<project>=UTF-8')
+	}
+}
+
+cleanEclipseJdt{
+	delete(new File(project.projectDir, '.settings/org.eclipse.core.resources.prefs') )
+}
+
+task sourceJar(type: Jar) {
+	from sourceSets.main.allJava
+}
+
+publishing {
+	publications {
+		mavenJar(MavenPublication){
+			from components.java
+
+			artifact sourceJar{
+				classifier "sources"
+			}
+
+			project.configurations[JavaPlugin.RUNTIME_CONFIGURATION_NAME].allDependencies.findAll {
+				it instanceof ModuleDependency && !it.excludeRules.isEmpty()
+			}.each { ModuleDependency dep ->pom.withXml {
+					def xmlDep = asNode().dependencies.dependency.find {
+						it.groupId[0].text() == dep.group && it.artifactId[0].text() == dep.name
+					}
+					def xmlExclusions = xmlDep.exclusions[0]
+					if (!xmlExclusions) {
+						xmlExclusions = xmlDep.appendNode('exclusions')
+					}
+					dep.excludeRules.each { ExcludeRule rule ->
+						def xmlExclusion = xmlExclusions.appendNode('exclusion')
+						xmlExclusion.appendNode('groupId', rule.group)
+						xmlExclusion.appendNode('artifactId', rule.module)
+					}
+				}
+			}
+		}
+	}
+
+	repositories {
+		mavenCentral()
+//		maven {
+//			url project.version.endsWith("SNAPSHOT")?project.ext.publishRepositoryUrl:project.ext.publishRepositoryUrlRelease
+//			credentials{
+//				username  project.ext.publishRepositoryUserName
+//				password  project.ext.publishRepositoryPassword
+//			}
+//		}
+	}
+}
+//build.finalizedBy(publishToMavenLocal)
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.0'
+}

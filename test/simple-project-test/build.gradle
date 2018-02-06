@@ -1,0 +1,28 @@
+apply plugin: 'com.missdumbo.gradle.template.thirdparty'
+apply plugin: 'com.missdumbo.gradle.template.simpleproject'
+//apply plugin: 'java'
+
+buildscript {
+    repositories {
+        mavenCentral()
+        jcenter()
+        maven { url "http://mvnrepository.com/" }
+        // gvc-starter would get from local maven
+        mavenLocal()
+    }
+    dependencies {
+        classpath "com.missdumbo.gradle:gvc-starter:" + project.gvcStarterVersion
+    }
+    configurations.all {
+        resolutionStrategy {
+            cacheChangingModulesFor 1, 'seconds'
+            cacheDynamicVersionsFor 1, 'seconds'
+        }
+    }
+}
+
+dependencies {
+    //You can refer defined third party library version at here when apply thirdparty plugin
+    compile 'com.google.guava:guava:' + project.guavaVersion
+    testCompile 'junit:junit:' + project.junitVersion
+}
